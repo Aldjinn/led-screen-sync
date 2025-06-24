@@ -13,8 +13,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/go-toast/toast"
 	"github.com/kbinani/screenshot"
+	"golang.org/x/image/draw"
 )
 
 type RGB struct {
@@ -30,6 +30,27 @@ func quantizeRGB(c RGB, step uint8) RGB {
 	}
 }
 
+// Ignore near-black and near-white colors
+func isBlackOrWhite(c RGB) bool {
+	return (c.R <= 16 && c.G <= 16 && c.B <= 16) || (c.R >= 240 && c.G >= 240 && c.B >= 240)
+}
+
+// Downscale image to 10% of original size
+func downscale(img image.Image) image.Image {
+	bounds := img.Bounds()
+	w := bounds.Dx() / 10
+	h := bounds.Dy() / 10
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	resized := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.BiLinear.Scale(resized, resized.Bounds(), img, bounds, draw.Over, nil)
+	return resized
+}
+
 func mostFrequentColor(img image.Image) RGB {
 	countMap := make(map[RGB]int)
 	bounds := img.Bounds()
@@ -41,7 +62,23 @@ func mostFrequentColor(img image.Image) RGB {
 			cg := uint8(g >> 8)
 			cb := uint8(b >> 8)
 			color := quantizeRGB(RGB{cr, cg, cb}, quantStep)
+			if isBlackOrWhite(color) {
+				continue
+			}
 			countMap[color]++
+		}
+	}
+	if len(countMap) == 0 {
+		// fallback: use all colors if nothing left after filtering
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				r, g, b, _ := img.At(x, y).RGBA()
+				cr := uint8(r >> 8)
+				cg := uint8(g >> 8)
+				cb := uint8(b >> 8)
+				color := quantizeRGB(RGB{cr, cg, cb}, quantStep)
+				countMap[color]++
+			}
 		}
 	}
 	var maxCount int
@@ -292,72 +329,73 @@ func callHomeAssistantHSColor(h, s int, token string) error {
 	return nil
 }
 
-func notifyMostColor(c RGB, h, s int) {
-	notification := toast.Notification{
-		AppID:   "LED Screen Sync",
-		Title:   "Most Used Color",
-		Message: fmt.Sprintf("R:%d G:%d B:%d (%s)\nhs_color: [%d, %d]", c.R, c.G, c.B, colorName(c), h, s),
-	}
-	err := notification.Push()
-	if err != nil {
-		log.Printf("Failed to send notification: %v", err)
-	}
+// Calculate Euclidean distance between two RGB colors
+func colorDistance(a, b RGB) float64 {
+	dr := int(a.R) - int(b.R)
+	dg := int(a.G) - int(b.G)
+	db := int(a.B) - int(b.B)
+	return (float64(dr*dr + dg*dg + db*db))
 }
 
 func main() {
-	interval := 10 * time.Second
+	interval := 333 * time.Millisecond
+	var prevColor *RGB
+	colorChangeThreshold := 32.0
 	for {
+		iterStart := time.Now()
 		numDisplay := screenshot.NumActiveDisplays()
 		if numDisplay <= 0 {
 			log.Fatal("No active display found")
 		}
 		bounds := screenshot.GetDisplayBounds(0)
-		log.Printf("Screenshot size: %dx%d", bounds.Dx(), bounds.Dy())
 		img, err := screenshot.CaptureRect(bounds)
 		if err != nil {
 			log.Fatalf("Failed to capture screenshot: %v", err)
 		}
-
 		if os.Getenv("EXPORT_SCREENSHOT") == "true" {
 			if err := saveScreenshotPNG(img, "screenshot.png"); err != nil {
 				log.Printf("Failed to save screenshot: %v", err)
 			}
 		}
-
-		mostColor := mostFrequentColor(img)
-		fmt.Printf("Most frequent color: R:%d G:%d B:%d (%s)\n",
-			mostColor.R, mostColor.G, mostColor.B, colorName(mostColor))
+		// Downscale for fast processing
+		smallImg := downscale(img)
+		mostColor := mostFrequentColor(smallImg)
 		h, s := rgbToHSColor(mostColor)
-		notifyMostColor(mostColor, h, s)
-		fmt.Printf("Calling Home Assistant with hs_color: [%d, %d]\n", h, s)
+		fmt.Printf("Most frequent color: R:%d G:%d B:%d (hs_color: [%d, %d])\n", mostColor.R, mostColor.G, mostColor.B, h, s)
+		shouldCallHA := false
+		if prevColor == nil {
+			shouldCallHA = true
+		} else {
+			dist := colorDistance(mostColor, *prevColor)
+			if dist >= colorChangeThreshold {
+				shouldCallHA = true
+			}
+		}
 		token := os.Getenv("HA_TOKEN")
 		if token == "" {
 			log.Println("HA_TOKEN environment variable not set, skipping Home Assistant call.")
-		} else {
+		} else if shouldCallHA {
 			err := callHomeAssistantHSColor(h, s, token)
 			if err != nil {
 				log.Printf("Failed to call Home Assistant: %v", err)
 			}
+			prevColor = &mostColor
+		} else {
+			fmt.Printf("Skipped Home Assistant call (color change < threshold %.1f)\n", colorChangeThreshold)
 		}
-
-		top := topColors(img, 10)
-		totalPixels := bounds.Dx() * bounds.Dy()
-		fmt.Println("Top 10 colors:")
-		for _, entry := range top {
-			percent := float64(entry.Count) / float64(totalPixels) * 100
-			fmt.Printf("R:%d G:%d B:%d (%s): %.2f%%\n",
-				entry.Color.R, entry.Color.G, entry.Color.B, colorName(entry.Color), percent)
-		}
-
+		iterEnd := time.Now()
+		iterDuration := iterEnd.Sub(iterStart).Seconds()
+		fmt.Printf("Iteration took %.3f seconds\n", iterDuration)
 		if os.Getenv("EXPORT_JSON") == "true" {
-			if err := logTopColorsJSON("colorlog.json", bounds, top, totalPixels); err != nil {
+			top := topColors(smallImg, 10)
+			totalPixels := smallImg.Bounds().Dx() * smallImg.Bounds().Dy()
+			if err := logTopColorsJSON("colorlog.json", smallImg.Bounds(), top, totalPixels); err != nil {
 				log.Printf("Failed to log JSON: %v", err)
 			}
 			if err := formatJSONFile("colorlog.json"); err != nil {
 				log.Printf("Failed to format JSON file: %v", err)
 			}
 		}
-
 		time.Sleep(interval)
 	}
 }
