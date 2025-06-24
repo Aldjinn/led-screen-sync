@@ -13,6 +13,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/getlantern/systray"
 	"github.com/kbinani/screenshot"
 	"golang.org/x/image/draw"
 )
@@ -337,11 +338,51 @@ func colorDistance(a, b RGB) float64 {
 	return (float64(dr*dr + dg*dg + db*db))
 }
 
-func main() {
+var (
+	running  = false
+	quitChan = make(chan struct{})
+)
+
+func onReady() {
+	systray.SetIcon(ledIcon)
+	systray.SetTitle("LED Sync")
+	systray.SetTooltip("LED Screen Sync")
+	// You can set a custom icon here with systray.SetIcon([]byte{})
+	mStart := systray.AddMenuItem("Start", "Start color updates")
+	mStop := systray.AddMenuItem("Stop", "Stop color updates")
+	mQuit := systray.AddMenuItem("Quit", "Quit the app")
+	mStop.Disable()
+
+	go func() {
+		for {
+			select {
+			case <-mStart.ClickedCh:
+				if !running {
+					running = true
+					mStart.Disable()
+					mStop.Enable()
+					go colorUpdateLoop()
+				}
+			case <-mStop.ClickedCh:
+				if running {
+					running = false
+					mStart.Enable()
+					mStop.Disable()
+					quitChan <- struct{}{}
+				}
+			case <-mQuit.ClickedCh:
+				systray.Quit()
+				os.Exit(0)
+			}
+		}
+	}()
+}
+
+func colorUpdateLoop() {
 	interval := 333 * time.Millisecond
 	var prevColor *RGB
 	colorChangeThreshold := 32.0
-	for {
+	for running {
 		iterStart := time.Now()
 		numDisplay := screenshot.NumActiveDisplays()
 		if numDisplay <= 0 {
@@ -396,6 +437,14 @@ func main() {
 				log.Printf("Failed to format JSON file: %v", err)
 			}
 		}
-		time.Sleep(interval)
+		select {
+		case <-quitChan:
+			return
+		case <-time.After(interval):
+		}
 	}
+}
+
+func main() {
+	systray.Run(onReady, func() {})
 }
