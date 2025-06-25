@@ -16,7 +16,6 @@ import (
 	"github.com/getlantern/systray"
 	"github.com/kbinani/screenshot"
 	"golang.org/x/image/draw"
-	"gopkg.in/yaml.v3"
 )
 
 type RGB struct {
@@ -376,16 +375,16 @@ func setLEDState(r, g, b, brightness int, token string) error {
 
 // Turn LED on or off using Home Assistant API
 func setLEDOnOff(on bool) error {
-	url := config.Env.HA_URL + "/api/services/light/turn_on"
+	url := appConfig.Env.HA_URL + "/api/services/light/turn_on"
 	if !on {
-		url = config.Env.HA_URL + "/api/services/light/turn_off"
+		url = appConfig.Env.HA_URL + "/api/services/light/turn_off"
 	}
-	body := fmt.Sprintf(`{"entity_id":"%s"}`, config.Env.LED_ENTITY)
+	body := fmt.Sprintf(`{"entity_id":"%s"}`, appConfig.Env.LED_ENTITY)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+config.Env.HA_TOKEN)
+	req.Header.Set("Authorization", "Bearer "+appConfig.Env.HA_TOKEN)
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -411,6 +410,7 @@ var (
 	running          = false
 	quitChan         = make(chan struct{})
 	originalLEDState *haState
+	appConfig        *Config
 )
 
 func onReady() {
@@ -587,31 +587,6 @@ func colorUpdateLoop() {
 	}
 }
 
-// Config struct for YAML
-type Config struct {
-	Env struct {
-		HA_URL                 string  `yaml:"HA_URL"`
-		HA_TOKEN               string  `yaml:"HA_TOKEN"`
-		LED_ENTITY             string  `yaml:"LED_ENTITY"`
-		EXPORT_JSON            bool    `yaml:"EXPORT_JSON"`
-		EXPORT_SCREENSHOT      bool    `yaml:"EXPORT_SCREENSHOT"`
-		COLOR_CHANGE_THRESHOLD float64 `yaml:"COLOR_CHANGE_THRESHOLD"`
-		UPDATE_INTERVAL_MS     int     `yaml:"UPDATE_INTERVAL_MS"`
-	} `yaml:"env"`
-}
-
-var config Config
-
-func loadConfig(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	dec := yaml.NewDecoder(f)
-	return dec.Decode(&config)
-}
-
 func maskToken(token string) string {
 	if len(token) <= 8 {
 		return "********"
@@ -620,18 +595,19 @@ func maskToken(token string) string {
 }
 
 func main() {
-	err := loadConfig("led-screen-sync.yaml")
+	var err error
+	appConfig, err = LoadConfig("led-screen-sync.yaml")
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 	log.Printf("Config loaded: HA_URL=%s, LED_ENTITY=%s, EXPORT_JSON=%v, EXPORT_SCREENSHOT=%v, COLOR_CHANGE_THRESHOLD=%.2f, UPDATE_INTERVAL_MS=%d, HA_TOKEN=%s",
-		config.Env.HA_URL,
-		config.Env.LED_ENTITY,
-		config.Env.EXPORT_JSON,
-		config.Env.EXPORT_SCREENSHOT,
-		config.Env.COLOR_CHANGE_THRESHOLD,
-		config.Env.UPDATE_INTERVAL_MS,
-		maskToken(config.Env.HA_TOKEN),
+		appConfig.Env.HA_URL,
+		appConfig.Env.LED_ENTITY,
+		appConfig.Env.EXPORT_JSON,
+		appConfig.Env.EXPORT_SCREENSHOT,
+		appConfig.Env.COLOR_CHANGE_THRESHOLD,
+		appConfig.Env.UPDATE_INTERVAL_MS,
+		maskToken(appConfig.Env.HA_TOKEN),
 	)
 	systray.Run(onReady, func() {})
 }
