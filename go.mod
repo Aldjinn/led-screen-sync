@@ -1,6 +1,6 @@
 module github.com/aldjinn/led-screen-sync
 
-go 1.24.3
+go 1.24.4
 
 require (
 	github.com/getlantern/systray v1.2.2
