@@ -2,3 +2,4 @@ colorlog.json
 screenshot.*
 DEVELOPMENT.md
 *.exe
+led-screen-sync.yaml
