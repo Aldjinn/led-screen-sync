@@ -374,6 +374,31 @@ func setLEDState(r, g, b, brightness int, token string) error {
 	return nil
 }
 
+// Turn LED on or off using Home Assistant API
+func setLEDOnOff(on bool) error {
+	url := config.Env.HA_URL + "/api/services/light/turn_on"
+	if !on {
+		url = config.Env.HA_URL + "/api/services/light/turn_off"
+	}
+	body := fmt.Sprintf(`{"entity_id":"%s"}`, config.Env.LED_ENTITY)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(body)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+config.Env.HA_TOKEN)
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("Home Assistant on/off call failed: %s", resp.Status)
+	}
+	return nil
+}
+
 // Calculate Euclidean distance between two RGB colors
 func colorDistance(a, b RGB) float64 {
 	dr := int(a.R) - int(b.R)
@@ -395,6 +420,8 @@ func onReady() {
 	// You can set a custom icon here with systray.SetIcon([]byte{})
 	mStart := systray.AddMenuItem("Start", "Start color updates")
 	mStop := systray.AddMenuItem("Stop", "Stop color updates")
+	mTurnOn := systray.AddMenuItem("Turn On", "Turn on the LED strip")
+	mTurnOff := systray.AddMenuItem("Turn Off", "Turn off the LED strip")
 	mQuit := systray.AddMenuItem("Quit", "Quit the app")
 	mStop.Disable()
 
@@ -425,6 +452,20 @@ func onReady() {
 					mStop.Disable()
 					quitChan <- struct{}{}
 				}
+			case <-mTurnOn.ClickedCh:
+				go func() {
+					err := setLEDOnOff(true)
+					if err != nil {
+						log.Printf("Failed to turn on LED: %v", err)
+					}
+				}()
+			case <-mTurnOff.ClickedCh:
+				go func() {
+					err := setLEDOnOff(false)
+					if err != nil {
+						log.Printf("Failed to turn off LED: %v", err)
+					}
+				}()
 			case <-mQuit.ClickedCh:
 				systray.Quit()
 				os.Exit(0)
