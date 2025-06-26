@@ -354,6 +354,7 @@ func getCurrentLEDState(token string) (*haState, error) {
 
 // Set LED state (rgb_color and brightness)
 func setLEDState(r, g, b, brightness int, token string) error {
+	logger.Infof("Setting LED state: R=%d G=%d B=%d Brightness=%d", r, g, b, brightness)
 	url := "http://192.168.1.124:8123/api/services/light/turn_on"
 	body := fmt.Sprintf(`{"entity_id":"%s","rgb_color":[%d,%d,%d],"brightness":%d}`, entityID, r, g, b, brightness)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(body)))
@@ -376,10 +377,13 @@ func setLEDState(r, g, b, brightness int, token string) error {
 
 // Turn LED on or off using Home Assistant API
 func setLEDOnOff(on bool) error {
-	url := appConfig.Env.HA_URL + "/api/services/light/turn_on"
+	logger.Infof("Turning LED %s", map[bool]string{true: "on", false: "off"}[on])
+	urlPath := "/api/services/light/turn_on"
 	if !on {
-		url = appConfig.Env.HA_URL + "/api/services/light/turn_off"
+		urlPath = "/api/services/light/turn_off"
 	}
+
+	url := appConfig.Env.HA_URL + urlPath
 	body := fmt.Sprintf(`{"entity_id":"%s"}`, appConfig.Env.LED_ENTITY)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(body)))
 	if err != nil {
@@ -489,24 +493,6 @@ func onReady() {
 	}()
 }
 
-// Helper to extract RGB from attributes (prefer rgb_color, fallback to hs_color)
-func attrsToRGB(attrs struct {
-	HSColor    []float64 `json:"hs_color"`
-	RGBColor   []int     `json:"rgb_color"`
-	Brightness int       `json:"brightness"`
-}) ([3]int, bool) {
-	if len(attrs.RGBColor) == 3 {
-		return [3]int{attrs.RGBColor[0], attrs.RGBColor[1], attrs.RGBColor[2]}, true
-	}
-	if len(attrs.HSColor) == 2 {
-		h := attrs.HSColor[0]
-		s := attrs.HSColor[1]
-		r, g, b := hsToRGB(h, s)
-		return [3]int{r, g, b}, true
-	}
-	return [3]int{255, 255, 255}, false
-}
-
 // Convert HS to RGB (Home Assistant style)
 func hsToRGB(h, s float64) (int, int, int) {
 	// h: 0-360, s: 0-100
@@ -559,7 +545,7 @@ func colorUpdateLoop() {
 		// Downscale for fast processing
 		smallImg := downscale(img)
 		mostColor := mostFrequentColor(smallImg)
-		logger.Infof("Most frequent color: R:%d G:%d B:%d", mostColor.R, mostColor.G, mostColor.B)
+		logger.Debugf("Most frequent color: R:%d G:%d B:%d", mostColor.R, mostColor.G, mostColor.B)
 		shouldCallHA := false
 		if prevColor == nil {
 			shouldCallHA = true
@@ -579,11 +565,11 @@ func colorUpdateLoop() {
 			}
 			prevColor = &mostColor
 		} else {
-			logger.Infof("Skipped Home Assistant call (color change < threshold %.1f)", colorChangeThreshold)
+			logger.Debugf("Skipped Home Assistant call (color change < threshold %.1f)", colorChangeThreshold)
 		}
 		iterEnd := time.Now()
 		iterDuration := iterEnd.Sub(iterStart).Seconds()
-		logger.Infof("Iteration took %.3f seconds", iterDuration)
+		logger.Debugf("Iteration took %.3f seconds", iterDuration)
 		if os.Getenv("EXPORT_JSON") == "true" {
 			top := topColors(smallImg, 10)
 			totalPixels := smallImg.Bounds().Dx() * smallImg.Bounds().Dy()
@@ -616,8 +602,7 @@ func main() {
 		logger.Fatalf("Failed to load config: %v", err)
 	}
 	setupLogger()
-	logger.Infof("[%s] Config loaded: HA_URL=%s, LED_ENTITY=%s, EXPORT_JSON=%v, EXPORT_SCREENSHOT=%v, COLOR_CHANGE_THRESHOLD=%.2f, UPDATE_INTERVAL_MS=%d, HA_TOKEN=%s",
-		time.Now().Format("2006-01-02T15:04:05.000Z07:00"),
+	logger.Infof("Config loaded: HA_URL=%s, LED_ENTITY=%s, EXPORT_JSON=%v, EXPORT_SCREENSHOT=%v, COLOR_CHANGE_THRESHOLD=%.2f, UPDATE_INTERVAL_MS=%d, HA_TOKEN=%s",
 		appConfig.Env.HA_URL,
 		appConfig.Env.LED_ENTITY,
 		appConfig.Env.EXPORT_JSON,
