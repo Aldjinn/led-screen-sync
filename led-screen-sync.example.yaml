@@ -1,0 +1,21 @@
+# led-screen-sync.yaml
+
+# Configuration for led-screen-sync tool
+
+env:
+  # Home Assistant API URL, no trailing slash
+  HA_URL: "http://your-homeassistant:8123"
+  # Home Assistant API token (set this to your long-lived access token)
+  HA_TOKEN: ""
+  # Name of the LED strip entity in Home Assistant
+  LED_ENTITY: "light.ldvsmart_indflex2m"
+  # Optional: Enable JSON debug logging (true/false)
+  EXPORT_JSON: false
+  # Optional: Enable screenshot export (true/false)
+  EXPORT_SCREENSHOT: false
+  # Optional: Color change threshold (default: 32.0)
+  COLOR_CHANGE_THRESHOLD: 32.0
+  # Optional: Update interval in milliseconds (default: 100)
+  UPDATE_INTERVAL_MS: 100
+  # Optional: Log level (debug, info, warn, error, dpanic, panic, fatal)
+  LOG_LEVEL: "info"
