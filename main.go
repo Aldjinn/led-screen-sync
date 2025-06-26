@@ -227,37 +227,15 @@ func logTopColorsJSON(filename string, bounds image.Rectangle, top []struct {
 	}
 	defer f.Close()
 	enc := json.NewEncoder(f)
-	return enc.Encode(logEntry)
-}
-
-func formatJSONFile(filename string) error {
-	f, err := os.Open(filename)
+	err = enc.Encode(logEntry)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	data, err := io.ReadAll(f)
-	if err != nil {
+	// Ensure the file is flushed to disk immediately
+	if err := f.Sync(); err != nil {
 		return err
 	}
-	var entries []json.RawMessage
-	dec := json.NewDecoder(bytes.NewReader(data))
-	for {
-		var entry json.RawMessage
-		err := dec.Decode(&entry)
-		if err != nil {
-			if err.Error() == "EOF" {
-				break
-			}
-			return err
-		}
-		entries = append(entries, entry)
-	}
-	pretty, err := json.MarshalIndent(entries, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filename, pretty, 0644)
+	return nil
 }
 
 func saveScreenshotPNG(img image.Image, filename string) error {
@@ -310,9 +288,6 @@ func rgbToHSColor(c RGB) (int, int) {
 	return int(h + 0.5), int(s + 0.5)
 }
 
-// Home Assistant entity ID
-const entityID = "light.ldvsmart_indflex2m"
-
 // Struct for Home Assistant state response
 // Add RGBColor to attributes
 type haState struct {
@@ -326,7 +301,7 @@ type haState struct {
 
 // Get current LED state from Home Assistant
 func getCurrentLEDState(token string) (*haState, error) {
-	url := "http://192.168.1.124:8123/api/states/" + entityID
+	url := appConfig.Env.HA_URL + "/api/states/" + appConfig.Env.LED_ENTITY
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -354,9 +329,9 @@ func getCurrentLEDState(token string) (*haState, error) {
 
 // Set LED state (rgb_color and brightness)
 func setLEDState(r, g, b, brightness int, token string) error {
-	logger.Infof("Setting LED state: R=%d G=%d B=%d Brightness=%d", r, g, b, brightness)
-	url := "http://192.168.1.124:8123/api/services/light/turn_on"
-	body := fmt.Sprintf(`{"entity_id":"%s","rgb_color":[%d,%d,%d],"brightness":%d}`, entityID, r, g, b, brightness)
+	url := appConfig.Env.HA_URL + "/api/services/light/turn_on"
+	body := fmt.Sprintf(`{"entity_id":"%s","rgb_color":[%d,%d,%d],"brightness":%d}`,
+		appConfig.Env.LED_ENTITY, r, g, b, brightness)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		return err
@@ -425,6 +400,24 @@ func setupLogger() {
 	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	cfg.Encoding = "console"
 	cfg.OutputPaths = []string{"stdout"}
+
+	level := zapcore.InfoLevel
+	switch appConfig.Env.LOG_LEVEL {
+	case "debug":
+		level = zapcore.DebugLevel
+	case "warn":
+		level = zapcore.WarnLevel
+	case "error":
+		level = zapcore.ErrorLevel
+	case "dpanic":
+		level = zapcore.DPanicLevel
+	case "panic":
+		level = zapcore.PanicLevel
+	case "fatal":
+		level = zapcore.FatalLevel
+	}
+	cfg.Level = zap.NewAtomicLevelAt(level)
+
 	l, err := cfg.Build()
 	if err != nil {
 		panic(err)
@@ -433,12 +426,13 @@ func setupLogger() {
 }
 
 func onReady() {
+	logger.Infof("Starting LED Sync app")
 	systray.SetIcon(ledIcon)
 	systray.SetTitle("LED Sync")
 	systray.SetTooltip("LED Screen Sync")
 	// You can set a custom icon here with systray.SetIcon([]byte{})
-	mStart := systray.AddMenuItem("Start", "Start color updates")
-	mStop := systray.AddMenuItem("Stop", "Stop color updates")
+	mStart := systray.AddMenuItem("Start Sync", "Start color updates")
+	mStop := systray.AddMenuItem("Stop Sync", "Stop color updates")
 	mTurnOn := systray.AddMenuItem("Turn On", "Turn on the LED strip")
 	mTurnOff := systray.AddMenuItem("Turn Off", "Turn off the LED strip")
 	mQuit := systray.AddMenuItem("Quit", "Quit the app")
@@ -486,6 +480,7 @@ func onReady() {
 					}
 				}()
 			case <-mQuit.ClickedCh:
+				logger.Infof("Exiting LED Sync app")
 				systray.Quit()
 				os.Exit(0)
 			}
@@ -537,7 +532,7 @@ func colorUpdateLoop() {
 		if err != nil {
 			logger.Fatalf("Failed to capture screenshot: %v", err)
 		}
-		if os.Getenv("EXPORT_SCREENSHOT") == "true" {
+		if appConfig.Env.EXPORT_SCREENSHOT {
 			if err := saveScreenshotPNG(img, "screenshot.png"); err != nil {
 				logger.Warnf("Failed to save screenshot: %v", err)
 			}
@@ -570,14 +565,11 @@ func colorUpdateLoop() {
 		iterEnd := time.Now()
 		iterDuration := iterEnd.Sub(iterStart).Seconds()
 		logger.Debugf("Iteration took %.3f seconds", iterDuration)
-		if os.Getenv("EXPORT_JSON") == "true" {
+		if appConfig.Env.EXPORT_JSON {
 			top := topColors(smallImg, 10)
 			totalPixels := smallImg.Bounds().Dx() * smallImg.Bounds().Dy()
 			if err := logTopColorsJSON("colorlog.json", smallImg.Bounds(), top, totalPixels); err != nil {
 				logger.Warnf("Failed to log JSON: %v", err)
-			}
-			if err := formatJSONFile("colorlog.json"); err != nil {
-				logger.Warnf("Failed to format JSON file: %v", err)
 			}
 		}
 		select {

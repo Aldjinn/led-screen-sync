@@ -15,6 +15,7 @@ type Config struct {
 		EXPORT_SCREENSHOT      bool    `yaml:"EXPORT_SCREENSHOT"`
 		COLOR_CHANGE_THRESHOLD float64 `yaml:"COLOR_CHANGE_THRESHOLD"`
 		UPDATE_INTERVAL_MS     int     `yaml:"UPDATE_INTERVAL_MS"`
+		LOG_LEVEL              string  `yaml:"LOG_LEVEL"`
 	} `yaml:"env"`
 }
 
