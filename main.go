@@ -221,17 +221,38 @@ func logTopColorsJSON(filename string, bounds image.Rectangle, top []struct {
 		ScreenSize: fmt.Sprintf("%dx%d", bounds.Dx(), bounds.Dy()),
 		TopColors:  stats,
 	}
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+
+	// Read existing log entries (if any)
+	var entries []LogEntry
+	if data, err := os.ReadFile(filename); err == nil && len(data) > 0 {
+		if err := json.Unmarshal(data, &entries); err != nil {
+			// If file is not a valid array, try to recover from NDJSON (old format)
+			var lines []LogEntry
+			for _, line := range bytes.Split(data, []byte{'\n'}) {
+				if len(bytes.TrimSpace(line)) == 0 {
+					continue
+				}
+				var e LogEntry
+				if err := json.Unmarshal(line, &e); err == nil {
+					lines = append(lines, e)
+				}
+			}
+			entries = lines
+		}
+	}
+	entries = append(entries, logEntry)
+
+	// Write the updated array back to file
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 	enc := json.NewEncoder(f)
-	err = enc.Encode(logEntry)
-	if err != nil {
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(entries); err != nil {
 		return err
 	}
-	// Ensure the file is flushed to disk immediately
 	if err := f.Sync(); err != nil {
 		return err
 	}
