@@ -7,7 +7,6 @@ import (
 	"image"
 	"image/png"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"sort"
@@ -15,6 +14,8 @@ import (
 
 	"github.com/getlantern/systray"
 	"github.com/kbinani/screenshot"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/image/draw"
 )
 
@@ -411,7 +412,21 @@ var (
 	quitChan         = make(chan struct{})
 	originalLEDState *haState
 	appConfig        *Config
+	logger           *zap.SugaredLogger
 )
+
+func setupLogger() {
+	cfg := zap.NewProductionConfig()
+	cfg.EncoderConfig.TimeKey = "ts"
+	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	cfg.Encoding = "console"
+	cfg.OutputPaths = []string{"stdout"}
+	l, err := cfg.Build()
+	if err != nil {
+		panic(err)
+	}
+	logger = l.Sugar()
+}
 
 func onReady() {
 	systray.SetIcon(ledIcon)
@@ -437,10 +452,10 @@ func onReady() {
 					if token != "" {
 						state, err := getCurrentLEDState(token)
 						if err != nil {
-							log.Printf("Failed to get current LED state: %v", err)
+							logger.Errorf("Failed to get current LED state: %v", err)
 						} else {
 							originalLEDState = state
-							log.Printf("Saved original LED state: hs_color=%v, brightness=%d", state.Attributes.HSColor, state.Attributes.Brightness)
+							logger.Infof("Saved original LED state: hs_color=%v, brightness=%d", state.Attributes.HSColor, state.Attributes.Brightness)
 						}
 					}
 					go colorUpdateLoop()
@@ -456,14 +471,14 @@ func onReady() {
 				go func() {
 					err := setLEDOnOff(true)
 					if err != nil {
-						log.Printf("Failed to turn on LED: %v", err)
+						logger.Errorf("Failed to turn on LED: %v", err)
 					}
 				}()
 			case <-mTurnOff.ClickedCh:
 				go func() {
 					err := setLEDOnOff(false)
 					if err != nil {
-						log.Printf("Failed to turn off LED: %v", err)
+						logger.Errorf("Failed to turn off LED: %v", err)
 					}
 				}()
 			case <-mQuit.ClickedCh:
@@ -529,22 +544,22 @@ func colorUpdateLoop() {
 		iterStart := time.Now()
 		numDisplay := screenshot.NumActiveDisplays()
 		if numDisplay <= 0 {
-			log.Fatal("No active display found")
+			logger.Fatal("No active display found")
 		}
 		bounds := screenshot.GetDisplayBounds(0)
 		img, err := screenshot.CaptureRect(bounds)
 		if err != nil {
-			log.Fatalf("Failed to capture screenshot: %v", err)
+			logger.Fatalf("Failed to capture screenshot: %v", err)
 		}
 		if os.Getenv("EXPORT_SCREENSHOT") == "true" {
 			if err := saveScreenshotPNG(img, "screenshot.png"); err != nil {
-				log.Printf("Failed to save screenshot: %v", err)
+				logger.Warnf("Failed to save screenshot: %v", err)
 			}
 		}
 		// Downscale for fast processing
 		smallImg := downscale(img)
 		mostColor := mostFrequentColor(smallImg)
-		fmt.Printf("Most frequent color: R:%d G:%d B:%d\n", mostColor.R, mostColor.G, mostColor.B)
+		logger.Infof("Most frequent color: R:%d G:%d B:%d", mostColor.R, mostColor.G, mostColor.B)
 		shouldCallHA := false
 		if prevColor == nil {
 			shouldCallHA = true
@@ -554,29 +569,29 @@ func colorUpdateLoop() {
 				shouldCallHA = true
 			}
 		}
-		token := os.Getenv("HA_TOKEN")
+		token := appConfig.Env.HA_TOKEN
 		if token == "" {
-			log.Println("HA_TOKEN environment variable not set, skipping Home Assistant call.")
+			logger.Warn("HA_TOKEN not set in config, skipping Home Assistant call.")
 		} else if shouldCallHA {
 			err := setLEDState(int(mostColor.R), int(mostColor.G), int(mostColor.B), 255, token)
 			if err != nil {
-				log.Printf("Failed to call Home Assistant: %v", err)
+				logger.Warnf("Failed to call Home Assistant: %v", err)
 			}
 			prevColor = &mostColor
 		} else {
-			fmt.Printf("Skipped Home Assistant call (color change < threshold %.1f)\n", colorChangeThreshold)
+			logger.Infof("Skipped Home Assistant call (color change < threshold %.1f)", colorChangeThreshold)
 		}
 		iterEnd := time.Now()
 		iterDuration := iterEnd.Sub(iterStart).Seconds()
-		fmt.Printf("Iteration took %.3f seconds\n", iterDuration)
+		logger.Infof("Iteration took %.3f seconds", iterDuration)
 		if os.Getenv("EXPORT_JSON") == "true" {
 			top := topColors(smallImg, 10)
 			totalPixels := smallImg.Bounds().Dx() * smallImg.Bounds().Dy()
 			if err := logTopColorsJSON("colorlog.json", smallImg.Bounds(), top, totalPixels); err != nil {
-				log.Printf("Failed to log JSON: %v", err)
+				logger.Warnf("Failed to log JSON: %v", err)
 			}
 			if err := formatJSONFile("colorlog.json"); err != nil {
-				log.Printf("Failed to format JSON file: %v", err)
+				logger.Warnf("Failed to format JSON file: %v", err)
 			}
 		}
 		select {
@@ -598,9 +613,11 @@ func main() {
 	var err error
 	appConfig, err = LoadConfig("led-screen-sync.yaml")
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		logger.Fatalf("Failed to load config: %v", err)
 	}
-	log.Printf("Config loaded: HA_URL=%s, LED_ENTITY=%s, EXPORT_JSON=%v, EXPORT_SCREENSHOT=%v, COLOR_CHANGE_THRESHOLD=%.2f, UPDATE_INTERVAL_MS=%d, HA_TOKEN=%s",
+	setupLogger()
+	logger.Infof("[%s] Config loaded: HA_URL=%s, LED_ENTITY=%s, EXPORT_JSON=%v, EXPORT_SCREENSHOT=%v, COLOR_CHANGE_THRESHOLD=%.2f, UPDATE_INTERVAL_MS=%d, HA_TOKEN=%s",
+		time.Now().Format("2006-01-02T15:04:05.000Z07:00"),
 		appConfig.Env.HA_URL,
 		appConfig.Env.LED_ENTITY,
 		appConfig.Env.EXPORT_JSON,

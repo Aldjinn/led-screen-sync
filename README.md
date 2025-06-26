@@ -28,7 +28,7 @@ env:
 
 ## Building Locally
 
-1. Install Go (1.18+ recommended): https://golang.org/dl/
+1. Install Go (1.24+ recommended): <https://golang.org/dl/>
 2. Clone this repository:
 
    ```bash
@@ -46,6 +46,12 @@ env:
 
    ```bash
    go build -ldflags -H=windowsgui -o led-screen-sync.exe
+   ```
+
+5. Run directly:
+
+   ```bash
+   go run .
    ```
 
 ## Running
@@ -70,7 +76,7 @@ go test ./...
 ## Requirements
 
 - Windows OS (uses Windows screenshot APIs)
-- Go 1.18 or newer
+- Go 1.24 or newer
 - Home Assistant with an accessible API and a compatible LED entity
 
 ## License
