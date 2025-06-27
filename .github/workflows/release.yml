@@ -48,6 +48,30 @@ jobs:
         with:
           name: led-screen-sync.exe
           path: bin/led-screen-sync.exe
+          
+      - name: Scan with VirusTotal
+        id: virustotal
+        uses: crazy-max/ghaction-virustotal@v4
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          files: bin/led-screen-sync.exe
+          
+      - name: Write VirusTotal analysis to summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const permalink = process.env['VIRUSTOTAL_PERMALINK'] || '';
+            let summary = `## VirusTotal Analysis\n`;
+            let vtUrl = '';
+            if (permalink.includes('=')) {
+              vtUrl = permalink.substring(permalink.indexOf('=') + 1);
+            } else {
+              vtUrl = permalink;
+            }
+            if (vtUrl) summary += `- [Security Scan Report](${vtUrl})\n`;
+            core.summary.addRaw(summary).write();
+        env:
+          VIRUSTOTAL_PERMALINK: ${{ steps.virustotal.outputs.analysis }}
 
   release:
     needs: build
@@ -73,28 +97,3 @@ jobs:
             ./bin/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-          
-      - name: Scan with VirusTotal
-        id: virustotal
-        uses: crazy-max/ghaction-virustotal@v4
-        with:
-          vt_api_key: ${{ secrets.VT_API_KEY }}
-          vt_monitor: false
-          files: ./bin/led-screen-sync.exe/led-screen-sync.exe
-          
-      - name: Write VirusTotal analysis to summary
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const permalink = process.env['VIRUSTOTAL_PERMALINK'] || '';
-            let summary = `## VirusTotal Analysis\n`;
-            let vtUrl = '';
-            if (permalink.includes('=')) {
-              vtUrl = permalink.substring(permalink.indexOf('=') + 1);
-            } else {
-              vtUrl = permalink;
-            }
-            if (vtUrl) summary += `- [Security Scan Report](${vtUrl})\n`;
-            core.summary.addRaw(summary).write();
-        env:
-          VIRUSTOTAL_PERMALINK: ${{ steps.virustotal.outputs.analysis }}
