@@ -63,6 +63,9 @@ jobs:
         with:
           path: ./bin
 
+      - name: List downloaded files
+        run: find ./bin -name "*.exe" -type f
+
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
