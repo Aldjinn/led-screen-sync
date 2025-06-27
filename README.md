@@ -38,7 +38,13 @@ env:
 - `UPDATE_INTERVAL_MS`: How often (in milliseconds) the screen is analyzed and the LED color is updated.
 - `LOG_LEVEL`: Controls the verbosity of log output. Use `debug` for development, `info` for normal use, or higher levels to reduce output.
 
-## Building Locally
+## Installation
+
+### Download Pre-built Binary
+
+Download the latest release from the [releases page](../../releases) and run `led-screen-sync.exe` directly.
+
+### Building Locally
 
 1. Install Go (1.24+ recommended): <https://golang.org/dl/>
 2. Clone this repository:

@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    environment: default
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Build Windows binary
+        env:
+          GOOS: windows
+          GOARCH: amd64
+        run: go build -ldflags "-H=windowsgui" -o led-screen-sync.exe
+        
+      - name: Scan with VirusTotal
+        uses: crazy-max/ghaction-virustotal@v4
+        id: virustotal
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          files: ./led-screen-sync.exe
+        
+      - name: Upload binary to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./led-screen-sync.exe
+          asset_name: led-screen-sync.exe
+          asset_content_type: application/octet-stream
+          
+      - name: Add VirusTotal scan result to release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const releaseId = context.payload.release.id;
+            
+            // Get current release
+            const release = await github.rest.repos.getRelease({
+              owner,
+              repo,
+              release_id: releaseId
+            });
+            
+            // Add VirusTotal scan link to release body
+            const vtLink = `\n\n🛡️ **Security Scan**: [VirusTotal Report](${{ steps.virustotal.outputs.analysis }})`;
+            const updatedBody = release.data.body + vtLink;
+            
+            // Update release with VirusTotal link
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: releaseId,
+              body: updatedBody
+            });
