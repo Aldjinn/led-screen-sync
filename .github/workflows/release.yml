@@ -30,14 +30,6 @@ jobs:
           mkdir bin
           go build -ldflags "-H=windowsgui" -o bin/led-screen-sync.exe
 
-      - name: VirusTotal Scan
-        uses: crazy-max/ghaction-virustotal@v4
-        with:
-          vt_api_key: ${{ secrets.VT_API_KEY }}
-          update_release_body: true
-          files: |
-            bin/led-screen-sync.exe
-        
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
@@ -45,3 +37,14 @@ jobs:
             bin/led-screen-sync.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Sleep for 10 seconds
+        run: Start-Sleep -Seconds 10 
+
+      - name: VirusTotal Scan
+        uses: crazy-max/ghaction-virustotal@v4
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          update_release_body: true
+          files: |
+            led-screen-sync.exe
