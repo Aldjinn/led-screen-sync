@@ -70,26 +70,3 @@ jobs:
             ./bin/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-
-  virustotal:
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      # required to write GitHub Release body
-      contents: write
-    steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./bin
-
-      - name: List downloaded files
-        run: find ./bin -name "*.exe" -type f
-
-      - name: VirusTotal Scan
-        uses: crazy-max/ghaction-virustotal@v4
-        with:
-          vt_api_key: ${{ secrets.VT_API_KEY }}
-          update_release_body: true
-          files: |
-            ./bin/led-screen-sync.exe/led-screen-sync.exe
