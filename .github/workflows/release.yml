@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     environment: default
     steps:
       - name: Checkout code
@@ -27,7 +27,7 @@ jobs:
 
       - name: Build Windows binary
         run: |
-          mkdir -p bin
+          mkdir bin
           go build -ldflags "-H=windowsgui" -o bin/led-screen-sync.exe
 
       - name: VirusTotal Scan
@@ -36,12 +36,12 @@ jobs:
           vt_api_key: ${{ secrets.VT_API_KEY }}
           update_release_body: true
           files: |
-            ./bin/led-screen-sync.exe
+            bin/led-screen-sync.exe
         
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ./bin/**/*
+            bin/led-screen-sync.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
