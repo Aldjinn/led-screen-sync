@@ -27,14 +27,13 @@ jobs:
 
       - name: Build Windows binary
         run: |
-          mkdir bin
-          go build -ldflags "-H=windowsgui" -o bin/led-screen-sync.exe
+          go build -ldflags "-H=windowsgui" -o led-screen-sync.exe
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bin/led-screen-sync.exe
+            led-screen-sync.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
