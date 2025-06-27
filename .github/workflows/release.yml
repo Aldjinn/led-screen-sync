@@ -79,6 +79,7 @@ jobs:
         uses: crazy-max/ghaction-virustotal@v4
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
+          vt_monitor: false
           files: ./bin/led-screen-sync.exe/led-screen-sync.exe
           
       - name: Write VirusTotal analysis to summary
