@@ -24,27 +24,30 @@ jobs:
         run: go test -v ./...
 
       - name: Build Windows binary
-        env:
-          GOOS: windows
-          GOARCH: amd64
         run: go build -ldflags "-H=windowsgui" -o led-screen-sync.exe
+        
+      - name: Verify binary exists
+        run: |
+          if (Test-Path "led-screen-sync.exe") {
+            Write-Host "Binary found: $(Get-Item led-screen-sync.exe | Select-Object Name, Length)"
+            Get-FileHash led-screen-sync.exe
+          } else {
+            Write-Host "ERROR: Binary not found!"
+            exit 1
+          }
+        
+      - name: Upload binary to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: led-screen-sync.exe
+          token: ${{ secrets.GITHUB_TOKEN }}
         
       - name: Scan with VirusTotal
         uses: crazy-max/ghaction-virustotal@v4
         id: virustotal
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
-          files: ./led-screen-sync.exe
-        
-      - name: Upload binary to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./led-screen-sync.exe
-          asset_name: led-screen-sync.exe
-          asset_content_type: application/octet-stream
+          files: led-screen-sync.exe
           
       - name: Add VirusTotal scan result to release
         uses: actions/github-script@v7
