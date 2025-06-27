@@ -49,6 +49,13 @@ jobs:
           name: led-screen-sync.exe
           path: bin/led-screen-sync.exe
 
+      - name: VirusTotal Scan
+        uses: crazy-max/ghaction-virustotal@v4
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          files: |
+            bin/led-screen-sync.exe
+
   release:
     needs: build
     runs-on: ubuntu-latest
