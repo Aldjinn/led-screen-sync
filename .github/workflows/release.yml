@@ -29,11 +29,16 @@ jobs:
         run: |
           go build -ldflags "-H=windowsgui" -o led-screen-sync.exe
 
+      - name: Prepare release zip
+        run: |
+          cp led-screen-sync.example.yaml led-screen-sync.yaml
+          zip led-screen-sync.zip led-screen-sync.exe led-screen-sync.yaml README.md
+
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            led-screen-sync.exe
+            led-screen-sync.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
