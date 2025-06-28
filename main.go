@@ -10,11 +10,16 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"runtime"
 	"sort"
+	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/getlantern/systray"
 	"github.com/kbinani/screenshot"
+	"github.com/sqweek/dialog"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/image/draw"
@@ -26,6 +31,65 @@ var (
 	commit  = "unknown" // Will be replaced with git commit hash
 	date    = "unknown" // Will be replaced with build date
 )
+
+// Windows API constants (for ShellExecute only)
+const (
+	SW_SHOWNORMAL = 1
+)
+
+// Windows API functions (for ShellExecute only)
+var (
+	shell32       = syscall.NewLazyDLL("shell32.dll")
+	shellExecuteW = shell32.NewProc("ShellExecuteW")
+)
+
+// showAboutDialog displays an About dialog with version info and option to open GitHub
+func showAboutDialog() {
+	aboutText := fmt.Sprintf("LED Screen Sync\n\nVersion: %s\nCommit: %.8s\nBuilt: %s\n\nGitHub: https://github.com/aldjinn/led-screen-sync\n\nWould you like to open the GitHub repository?",
+		version, commit, date)
+
+	// Show the info dialog with Yes/No buttons
+	choice := dialog.Message("%s", aboutText).
+		Title("About LED Screen Sync").
+		YesNo()
+
+	// If user clicked Yes, open GitHub repository
+	if choice {
+		openGitHubRepo()
+	}
+}
+
+// openGitHubRepo opens the GitHub repository in the default browser
+func openGitHubRepo() {
+	url := "https://github.com/aldjinn/led-screen-sync"
+
+	if runtime.GOOS == "windows" {
+		// Use ShellExecute on Windows
+		urlPtr, _ := syscall.UTF16PtrFromString(url)
+		openPtr, _ := syscall.UTF16PtrFromString("open")
+
+		shellExecuteW.Call(
+			0,
+			uintptr(unsafe.Pointer(openPtr)),
+			uintptr(unsafe.Pointer(urlPtr)),
+			0,
+			0,
+			uintptr(SW_SHOWNORMAL),
+		)
+	} else {
+		// Fallback for other platforms
+		var cmd *exec.Cmd
+		switch runtime.GOOS {
+		case "linux":
+			cmd = exec.Command("xdg-open", url)
+		case "darwin":
+			cmd = exec.Command("open", url)
+		default:
+			return
+		}
+		cmd.Start()
+	}
+}
 
 type RGB struct {
 	R, G, B uint8
@@ -463,6 +527,8 @@ func onReady() {
 	mStop := systray.AddMenuItem("Stop Sync", "Stop color updates")
 	mTurnOn := systray.AddMenuItem("Turn On", "Turn on the LED strip")
 	mTurnOff := systray.AddMenuItem("Turn Off", "Turn off the LED strip")
+	systray.AddSeparator()
+	mAbout := systray.AddMenuItem("About", "About LED Screen Sync")
 	mQuit := systray.AddMenuItem("Quit", "Quit the app")
 	mStop.Disable()
 
@@ -507,6 +573,8 @@ func onReady() {
 						logger.Errorf("Failed to turn off LED: %v", err)
 					}
 				}()
+			case <-mAbout.ClickedCh:
+				go showAboutDialog()
 			case <-mQuit.ClickedCh:
 				logger.Infof("Exiting LED Sync app")
 				systray.Quit()
