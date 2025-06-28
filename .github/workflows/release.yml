@@ -27,7 +27,11 @@ jobs:
 
       - name: Build Windows binary
         run: |
-          go build -ldflags "-H=windowsgui" -o led-screen-sync.exe
+          $VERSION = "${{ github.ref_name }}"
+          $COMMIT = "${{ github.sha }}"
+          $DATE = Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ"
+          
+          go build -ldflags "-H=windowsgui -X main.version=$VERSION -X main.commit=$COMMIT -X main.date=$DATE" -o led-screen-sync.exe
 
       - name: Prepare release zip
         run: |

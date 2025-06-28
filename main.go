@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"image"
 	"image/png"
@@ -17,6 +18,13 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/image/draw"
+)
+
+// Build-time variables (set via -ldflags)
+var (
+	version = "dev"     // Will be replaced with git tag
+	commit  = "unknown" // Will be replaced with git commit hash
+	date    = "unknown" // Will be replaced with build date
 )
 
 type RGB struct {
@@ -447,7 +455,6 @@ func setupLogger() {
 }
 
 func onReady() {
-	logger.Infof("Starting LED Sync app")
 	systray.SetIcon(ledIcon)
 	systray.SetTitle("LED Sync")
 	systray.SetTooltip("LED Screen Sync")
@@ -609,12 +616,28 @@ func maskToken(token string) string {
 }
 
 func main() {
+	// Parse command line flags
+	var showVersion = flag.Bool("v", false, "show version information")
+	flag.Parse()
+
+	// Handle version flag
+	if *showVersion {
+		fmt.Printf("LED Screen Sync v%s\n", version)
+		fmt.Printf("Commit: %s\n", commit)
+		fmt.Printf("Built: %s\n", date)
+		os.Exit(0)
+	}
+
 	var err error
 	appConfig, err = LoadConfig("led-screen-sync.yaml")
 	if err != nil {
 		logger.Fatalf("Failed to load config: %v", err)
 	}
 	setupLogger()
+
+	logger.Infof("Starting LED Sync app")
+	logger.Infof("Version: %s, Commit: %s, Built: %s", version, commit, date)
+
 	logger.Infof("Config loaded: HA_URL=%s, LED_ENTITY=%s, EXPORT_JSON=%v, EXPORT_SCREENSHOT=%v, COLOR_CHANGE_THRESHOLD=%.2f, UPDATE_INTERVAL_MS=%d, HA_TOKEN=%s",
 		appConfig.Env.HA_URL,
 		appConfig.Env.LED_ENTITY,
