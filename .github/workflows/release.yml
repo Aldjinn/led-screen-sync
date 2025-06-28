@@ -35,8 +35,8 @@ jobs:
 
       - name: Prepare release zip
         run: |
-          cp led-screen-sync.example.yaml led-screen-sync.yaml
-          zip led-screen-sync.zip led-screen-sync.exe led-screen-sync.yaml README.md
+          Copy-Item led-screen-sync.example.yaml led-screen-sync.yaml
+          Compress-Archive -Path led-screen-sync.exe, led-screen-sync.yaml, README.md -DestinationPath led-screen-sync.zip
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v2
