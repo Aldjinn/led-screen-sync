@@ -15,6 +15,6 @@ Write-Host "Building version: $VERSION"
 Write-Host "Commit: $COMMIT"
 Write-Host "Date: $DATE"
 
-go build -ldflags "-X main.version=$VERSION -X main.commit=$COMMIT -X main.date=$DATE" -o led-screen-sync.exe
+go build -ldflags "-H=windowsgui -X main.version=$VERSION -X main.commit=$COMMIT -X main.date=$DATE" -o led-screen-sync.exe
 
 .\led-screen-sync.exe -v
