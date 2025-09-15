@@ -7,7 +7,7 @@ require (
 	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018
 	github.com/sqweek/dialog v0.0.0-20240226140203-065105509627
 	go.uber.org/zap v1.27.0
-	golang.org/x/image v0.30.0
+	golang.org/x/image v0.31.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
