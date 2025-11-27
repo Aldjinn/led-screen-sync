@@ -6,7 +6,7 @@ require (
 	github.com/getlantern/systray v1.2.2
 	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018
 	github.com/sqweek/dialog v0.0.0-20240226140203-065105509627
-	go.uber.org/zap v1.27.0
+	go.uber.org/zap v1.27.1
 	golang.org/x/image v0.33.0
 	gopkg.in/yaml.v3 v3.0.1
 )
