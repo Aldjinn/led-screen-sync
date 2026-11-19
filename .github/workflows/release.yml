@@ -39,7 +39,7 @@ jobs:
           Compress-Archive -Path led-screen-sync.exe, led-screen-sync.yaml, README.md -DestinationPath led-screen-sync.zip
 
       - name: Upload Release Assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             led-screen-sync.zip
