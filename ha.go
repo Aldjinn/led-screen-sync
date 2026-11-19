@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -46,7 +47,11 @@ func (c *haClient) do(ctx context.Context, method, path string, payload any) ([]
 		}
 		body = bytes.NewReader(data)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
+	target, err := c.endpoint(path)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, method, target, body)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +75,28 @@ func (c *haClient) do(ctx context.Context, method, path string, payload any) ([]
 	return data, nil
 }
 
+// endpoint builds the request URL from the configured base URL and a fixed API
+// path. The base must be a plain http(s) URL, and the path is joined (and
+// cleaned) rather than concatenated, so no input can change the host or escape
+// the /api/ prefix.
+func (c *haClient) endpoint(path string) (string, error) {
+	base, err := url.Parse(c.baseURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid Home Assistant URL: %w", err)
+	}
+	if (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" || base.User != nil {
+		return "", fmt.Errorf("invalid Home Assistant URL %q", c.baseURL)
+	}
+	u := base.JoinPath(path)
+	// Compare without leading slashes: JoinPath omits it when the base has no path.
+	want := strings.TrimPrefix(strings.Trim(base.Path, "/")+"/api", "/")
+	got := strings.TrimPrefix(u.Path, "/")
+	if got != want && !strings.HasPrefix(got, want+"/") {
+		return "", fmt.Errorf("unexpected API path %q", path)
+	}
+	return u.String(), nil
+}
+
 // Ping checks that the URL is reachable and the token is accepted.
 func (c *haClient) Ping(ctx context.Context) error {
 	_, err := c.do(ctx, http.MethodGet, "/api/", nil)
@@ -78,7 +105,7 @@ func (c *haClient) Ping(ctx context.Context) error {
 
 // State returns the current state of the configured entity.
 func (c *haClient) State(ctx context.Context) (*haState, error) {
-	data, err := c.do(ctx, http.MethodGet, "/api/states/"+c.entity, nil)
+	data, err := c.do(ctx, http.MethodGet, "/api/states/"+url.PathEscape(c.entity), nil)
 	if err != nil {
 		return nil, err
 	}

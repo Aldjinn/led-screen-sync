@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -109,6 +110,9 @@ func (c *Config) applyEnvOverrides() {
 	}
 }
 
+// entityIDPattern matches Home Assistant entity IDs such as light.my_led_strip.
+var entityIDPattern = regexp.MustCompile(`^[a-z0-9_]+\.[a-z0-9_]+$`)
+
 var validLogLevels = map[string]bool{
 	"debug": true, "info": true, "warn": true, "error": true,
 	"dpanic": true, "panic": true, "fatal": true,
@@ -122,6 +126,9 @@ func (c *Config) Validate() error {
 	}
 	if e.LED_ENTITY == "" {
 		return fmt.Errorf("LED_ENTITY is not set")
+	}
+	if !entityIDPattern.MatchString(e.LED_ENTITY) {
+		return fmt.Errorf("LED_ENTITY %q is not a valid entity ID (expected something like light.my_led_strip)", e.LED_ENTITY)
 	}
 	if !validLogLevels[e.LOG_LEVEL] {
 		return fmt.Errorf("LOG_LEVEL %q is invalid (use debug, info, warn, error, dpanic, panic or fatal)", e.LOG_LEVEL)
@@ -156,6 +163,9 @@ func validateHAURL(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return fmt.Errorf("HA_URL %q must look like http://host:8123", raw)
+	}
+	if u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return fmt.Errorf("HA_URL must not contain credentials, a query string or a fragment")
 	}
 	return nil
 }

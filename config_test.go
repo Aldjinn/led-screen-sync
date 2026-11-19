@@ -99,6 +99,10 @@ func TestConfigValidate(t *testing.T) {
 		"THRESHOLD":  func(c *Config) { c.Env.COLOR_CHANGE_THRESHOLD = 900 },
 		"BRIGHTNESS": func(c *Config) { c.Env.BRIGHTNESS = 300 },
 		"DISPLAY":    func(c *Config) { c.Env.DISPLAY_INDEX = -1 },
+		"entity":     func(c *Config) { c.Env.LED_ENTITY = "../config" },
+		"entity2":    func(c *Config) { c.Env.LED_ENTITY = "light" },
+		"userinfo":   func(c *Config) { c.Env.HA_URL = "http://u:p@ha:8123" },
+		"query":      func(c *Config) { c.Env.HA_URL = "http://ha:8123/?x=1" },
 	}
 	for name, mutate := range cases {
 		c := base()

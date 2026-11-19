@@ -246,3 +246,33 @@ func TestHAClient_State(t *testing.T) {
 		t.Errorf("st=%+v err=%v", st, err)
 	}
 }
+
+func TestHAClient_EndpointCannotEscape(t *testing.T) {
+	c := newHAClient("http://ha.local:8123/sub", "t", "light.x")
+	got, err := c.endpoint("/api/states/light.x")
+	if err != nil || got != "http://ha.local:8123/sub/api/states/light.x" {
+		t.Errorf("got %q err=%v", got, err)
+	}
+	if _, err := newHAClient("ftp://ha.local", "t", "light.x").endpoint("/api/"); err == nil {
+		t.Error("non-http scheme must be rejected")
+	}
+	if _, err := newHAClient("http://user:pw@ha.local", "t", "light.x").endpoint("/api/"); err == nil {
+		t.Error("credentials in the URL must be rejected")
+	}
+	if _, err := newHAClient("http://ha.local", "t", "light.x").endpoint("/../etc/passwd"); err == nil {
+		t.Error("path outside /api must be rejected")
+	}
+}
+
+func TestHAClient_StateEscapesEntity(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.EscapedPath()
+		w.Write([]byte(`{"state":"on","attributes":{}}`))
+	}))
+	defer srv.Close()
+	_, _ = newHAClient(srv.URL, "t", "../config/x").State(context.Background())
+	if !strings.HasPrefix(gotPath, "/api/states/") || strings.Contains(gotPath, "/../") {
+		t.Errorf("entity escaped the states path: %q", gotPath)
+	}
+}
