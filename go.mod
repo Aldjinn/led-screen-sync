@@ -8,6 +8,7 @@ require (
 	github.com/sqweek/dialog v0.0.0-20260123140253-64c163d53aac
 	go.uber.org/zap v1.28.0
 	golang.org/x/image v0.48.0
+	golang.org/x/sys v0.50.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -34,5 +35,4 @@ require (
 	go.opentelemetry.io/otel/metric v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sys v0.50.0 // indirect
 )

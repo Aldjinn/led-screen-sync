@@ -1,21 +1,47 @@
 # led-screen-sync.yaml
-
-# Configuration for led-screen-sync tool
+#
+# Configuration for led-screen-sync. Place this file next to led-screen-sync.exe
+# (or pass -config <path>). Use "Reload Config" in the tray menu to apply changes.
+#
+# HA_URL, HA_TOKEN and LED_ENTITY can also be set as environment variables of the
+# same name; they override the values below (handy to keep the token out of this file).
 
 env:
-  # Home Assistant API URL, no trailing slash
+  # Home Assistant API URL (no trailing slash needed)
   HA_URL: "http://your-homeassistant:8123"
-  # Home Assistant API token (set this to your long-lived access token)
+  # Home Assistant long-lived access token
   HA_TOKEN: ""
-  # Name of the LED strip entity in Home Assistant
+  # Entity ID of the LED strip in Home Assistant
   LED_ENTITY: "light.ldvsmart_indflex2m"
-  # Optional: Enable JSON debug logging (true/false)
+  # Optional: write the top colors of each new frame to colorlog.ndjson (rotated at 10 MB)
   EXPORT_JSON: false
-  # Optional: Enable screenshot export (true/false)
+  # Optional: save screenshot.png (at most every 5 seconds)
   EXPORT_SCREENSHOT: false
-  # Optional: Color change threshold (default: 32.0)
+  # Minimum color distance (0-441, Euclidean RGB) before the LED is updated. Default: 32
   COLOR_CHANGE_THRESHOLD: 32.0
-  # Optional: Update interval in milliseconds (default: 100)
+  # How often the screen is analyzed, in milliseconds. Default: 100
   UPDATE_INTERVAL_MS: 100
-  # Optional: Log level (debug, info, warn, error, dpanic, panic, fatal)
+  # Log level: debug, info, warn, error, dpanic, panic, fatal. Default: info
   LOG_LEVEL: "info"
+
+  # --- Optional settings (defaults shown) ---
+
+  # Which monitor to analyze (0 = first/primary)
+  DISPLAY_INDEX: 0
+  # How the LED color is chosen:
+  #   dominant - the most frequent color (default)
+  #   vibrant  - like dominant, but saturated colors are favored over dull ones
+  #   average  - the average color of the screen
+  COLOR_MODE: "dominant"
+  # LED brightness 1-255 (the maximum when AUTO_BRIGHTNESS is on)
+  BRIGHTNESS: 255
+  # Derive brightness from the detected color, so dark scenes give a dim LED
+  AUTO_BRIGHTNESS: false
+  # Lowest brightness used in auto mode
+  MIN_BRIGHTNESS: 10
+  # Fade time per update in milliseconds, sent to Home Assistant (0 = instant)
+  TRANSITION_MS: 0
+  # Minimum gap between Home Assistant calls; protects slow bulbs/hubs
+  MIN_CALL_INTERVAL_MS: 150
+  # Leave the last color on the LED after Stop/Quit instead of restoring the previous state
+  KEEP_COLOR_ON_STOP: false
