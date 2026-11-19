@@ -277,31 +277,16 @@ type lightInfo struct {
 	State string `json:"state"`
 }
 
-// POST /api/discover {"HA_URL":"...","HA_TOKEN":""} - tests the connection and
-// lists the light entities. A blank token means "use the saved one".
+// POST /api/discover - tests the connection and lists the light entities.
+//
+// It only ever talks to the Home Assistant server that is already saved in the
+// configuration; the request carries no URL or token. Accepting a URL from the
+// page would let any caller make the app (and its saved token) contact an
+// arbitrary host.
 func (s *settingsServer) handleDiscover(w http.ResponseWriter, r *http.Request) {
-	var in struct{ HA_URL, HA_TOKEN string }
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		errJSON(w, http.StatusBadRequest, err)
-		return
-	}
-	cfg := currentConfig().Env
-	url := strings.TrimRight(strings.TrimSpace(in.HA_URL), "/")
-	if url == "" {
-		url = cfg.HA_URL
-	}
-	token := strings.TrimSpace(in.HA_TOKEN)
-	if token == "" {
-		token = cfg.HA_TOKEN
-	}
-	if err := validateHAURL(url); err != nil {
-		errJSON(w, http.StatusBadRequest, err)
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
-	c := newHAClient(url, token, "")
+	c := newClientFromConfig()
 	data, err := c.do(ctx, http.MethodGet, "/api/states", nil)
 	if err != nil {
 		errJSON(w, http.StatusBadGateway, err)

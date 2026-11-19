@@ -225,18 +225,31 @@ func TestSettings_DiscoverLights(t *testing.T) {
 	}))
 	defer ha.Close()
 
-	code, out := do(t, srv, "POST", "/api/discover", map[string]string{"HA_URL": ha.URL, "HA_TOKEN": "saved-or-typed"}, nil)
+	// Discovery uses the *saved* server and token only.
+	saved := *currentConfig()
+	saved.Env.HA_URL, saved.Env.HA_TOKEN = ha.URL, "saved-or-typed"
+	cfgPtr.Store(&saved)
+
+	code, out := do(t, srv, "POST", "/api/discover", map[string]string{}, nil)
 	lights, _ := out["lights"].([]any)
 	if code != 200 || len(lights) != 2 || lights[0].(map[string]any)["id"] != "light.a" {
 		t.Errorf("discover: %d %v", code, out)
 	}
-	// Wrong token surfaces the Home Assistant error.
-	code, out = do(t, srv, "POST", "/api/discover", map[string]string{"HA_URL": ha.URL, "HA_TOKEN": "wrong"}, nil)
+	// A URL or token in the request must be ignored (no way to aim the app elsewhere).
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("request body URL was contacted")
+	}))
+	defer other.Close()
+	if code, _ := do(t, srv, "POST", "/api/discover", map[string]string{"HA_URL": other.URL, "HA_TOKEN": "x"}, nil); code != 200 {
+		t.Errorf("extra fields should be ignored, got %d", code)
+	}
+
+	// A wrong saved token surfaces the Home Assistant error.
+	saved.Env.HA_TOKEN = "wrong"
+	cfgPtr.Store(&saved)
+	code, out = do(t, srv, "POST", "/api/discover", map[string]string{}, nil)
 	if code != 502 || !strings.Contains(out["error"].(string), "401") {
 		t.Errorf("bad token: %d %v", code, out)
-	}
-	if code, _ := do(t, srv, "POST", "/api/discover", map[string]string{"HA_URL": "nonsense"}, nil); code != 400 {
-		t.Errorf("bad url: got %d, want 400", code)
 	}
 }
 

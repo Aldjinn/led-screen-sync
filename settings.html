@@ -114,7 +114,8 @@
       <div><div class="inline"><input type="text" id="LED_ENTITY" data-k="LED_ENTITY" list="lights" placeholder="light.my_led_strip" autocomplete="off" spellcheck="false">
         <button type="button" id="btnFind">Find lights</button></div>
         <datalist id="lights"></datalist>
-        <div class="msg" id="findMsg"></div></div></div>
+        <div class="msg" id="findMsg"></div>
+        <div class="hint">Lights are looked up on the server that is <b>saved</b> above. After changing the URL or token, save first.</div></div></div>
   </div>
 
   <div class="card">
@@ -247,7 +248,13 @@
   }
 
   function updateDirty() {
-    const dirty = loaded && JSON.stringify(readForm()) !== baseline;
+    const now = readForm();
+    const dirty = loaded && JSON.stringify(now) !== baseline;
+    // "Find lights" only talks to the saved server, so it needs the connection settings saved first.
+    const base = loaded ? JSON.parse(baseline) : {};
+    const connDirty = loaded && (now.HA_URL !== base.HA_URL || now.HA_TOKEN !== '');
+    $('btnFind').disabled = connDirty;
+    $('btnFind').title = connDirty ? 'Save the URL/token changes first' : '';
     $('btnSave').disabled = !dirty;
     $('btnRevert').disabled = !dirty;
     const s = $('dirtyState');
@@ -335,6 +342,7 @@
       await api('/api/config', readForm());
       await load(false);
       toast(running ? 'Saved – sync restarted with the new settings' : 'Saved');
+      $('btnFind').click(); // refresh the light list for the (possibly new) server
     } catch (e) {
       $('err').textContent = e.message;
       updateDirty();
@@ -356,7 +364,7 @@
   $('btnFind').addEventListener('click', async () => {
     const msg = $('findMsg'); msg.className = 'msg'; msg.textContent = 'Looking…';
     try {
-      const r = await api('/api/discover', { HA_URL: $('HA_URL').value.trim(), HA_TOKEN: $('HA_TOKEN').value.trim() });
+      const r = await api('/api/discover', {});
       const dl = $('lights'); dl.innerHTML = '';
       for (const l of r.lights) {
         const o = document.createElement('option');
