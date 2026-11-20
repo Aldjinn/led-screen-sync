@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [ main ]
 
+# The tests only need to read the repository.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: windows-latest
@@ -19,5 +23,8 @@ jobs:
         with:
           go-version: 'stable'
           
+      - name: Vet
+        run: go vet ./...
+
       - name: Run tests
         run: go test -v ./...

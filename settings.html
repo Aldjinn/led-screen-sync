@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LED Screen Sync – Settings</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1b1f27; --muted: #5d6675; --line: #dfe3ea;
+    --accent: #3b6df0; --accent-text: #ffffff; --ok: #1f9d55; --warn: #c27c0e; --bad: #d23b3b;
+    --field: #ffffff; --shadow: 0 1px 2px rgba(20,30,50,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b2029; --text: #e8ebf1; --muted: #9aa3b2; --line: #2b3240;
+      --accent: #6b94ff; --accent-text: #0c1220; --ok: #43c47c; --warn: #e0a23a; --bad: #f07575;
+      --field: #141922; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 20px 16px 120px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; }
+  h1 small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  .chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .chip.running .dot { background: var(--ok); }
+  .chip.error .dot { background: var(--bad); }
+  .chip.wait .dot { background: var(--warn); }
+
+  .live { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .swatch { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--field); }
+  .swatch .color { height: 76px; background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0/14px 14px; transition: background-color .35s; }
+  .swatch .meta { padding: 8px 10px; font-size: 13px; display: flex; justify-content: space-between; color: var(--muted); }
+  .swatch .meta b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--field); color: var(--text); padding: 8px 14px; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button.primary:disabled { opacity: .45; cursor: default; }
+  button.small { padding: 5px 10px; font-size: 13px; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .row { display: grid; grid-template-columns: 190px 1fr; gap: 6px 16px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; padding-top: 0; }
+  .row > label, .row > .lab { font-weight: 600; padding-top: 7px; }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 4px; font-weight: 400; }
+  input[type=text], input[type=password], input[type=number], select {
+    width: 100%; font: inherit; color: var(--text); background: var(--field);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .slider { display: grid; grid-template-columns: 1fr 76px; gap: 12px; align-items: center; }
+  .slider output { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .check { display: flex; align-items: center; gap: 8px; padding-top: 6px; }
+  .inline { display: flex; gap: 8px; }
+  .inline > :first-child { flex: 1; }
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; }
+  .msg { font-size: 13px; margin-top: 6px; }
+  .msg.bad { color: var(--bad); } .msg.ok { color: var(--ok); }
+
+  .savebar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding: 12px 16px; }
+  .savebar > div { max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .savebar .state { flex: 1; color: var(--muted); min-width: 180px; }
+  .savebar .state.dirty { color: var(--warn); font-weight: 600; }
+  #err { color: var(--bad); font-size: 13px; width: 100%; }
+  #toast { position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+    padding: 9px 16px; border-radius: 8px; opacity: 0; pointer-events: none; transition: opacity .2s; font-size: 14px; }
+  #toast.show { opacity: .95; }
+
+  @media (max-width: 560px) {
+    .row { grid-template-columns: 1fr; }
+    .row > label, .row > .lab { padding-top: 0; }
+    .live { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>LED Screen Sync <small id="ver"></small></h1>
+    <span class="chip" id="chip"><span class="dot"></span><span id="status">Connecting…</span></span>
+  </header>
+
+  <section class="live" aria-label="Live preview">
+    <div class="swatch"><div class="color" id="swDetected"></div>
+      <div class="meta"><span>Detected on screen</span><b id="hxDetected">–</b></div></div>
+    <div class="swatch"><div class="color" id="swSent"></div>
+      <div class="meta"><span>Sent to the LED</span><b id="hxSent">–</b></div></div>
+  </section>
+
+  <div class="card">
+    <h2>Control</h2>
+    <div class="actions">
+      <button class="primary" id="btnRun">Start sync</button>
+      <button id="btnOn">Turn light on</button>
+      <button id="btnOff">Turn light off</button>
+    </div>
+    <div class="hint">Starting sync remembers the light's current state and restores it when you stop (unless “keep color on stop” is set).</div>
+  </div>
+
+  <div class="card">
+    <h2>Home Assistant</h2>
+    <div class="row"><label for="HA_URL">Server URL</label>
+      <div><input type="text" id="HA_URL" data-k="HA_URL" placeholder="http://homeassistant.local:8123" autocomplete="off" spellcheck="false"></div></div>
+    <div class="row"><label for="HA_TOKEN">Access token</label>
+      <div><input type="password" id="HA_TOKEN" data-k="HA_TOKEN" autocomplete="new-password" spellcheck="false">
+        <div class="hint" id="tokenHint">Long-lived access token from your Home Assistant profile. Never shown again once saved; leave empty to keep it.</div></div></div>
+    <div class="row"><label for="LED_ENTITY">Light</label>
+      <div><div class="inline"><input type="text" id="LED_ENTITY" data-k="LED_ENTITY" list="lights" placeholder="light.my_led_strip" autocomplete="off" spellcheck="false">
+        <button type="button" id="btnFind">Find lights</button></div>
+        <datalist id="lights"></datalist>
+        <div class="msg" id="findMsg"></div>
+        <div class="hint">Lights are looked up on the server that is <b>saved</b> above. After changing the URL or token, save first.</div></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Color</h2>
+    <div class="row"><span class="lab">Presets</span>
+      <div><div class="presets">
+        <button type="button" class="small" data-preset="calm">Calm</button>
+        <button type="button" class="small" data-preset="balanced">Balanced</button>
+        <button type="button" class="small" data-preset="reactive">Reactive</button></div>
+        <div class="hint">Sets the sensitivity, fade and update rate below in one go. You can still fine-tune afterwards.</div></div></div>
+    <div class="row"><label for="COLOR_MODE">Color mode</label>
+      <div><select id="COLOR_MODE" data-k="COLOR_MODE">
+          <option value="dominant">Dominant – most frequent color</option>
+          <option value="vibrant">Vibrant – favors saturated colors</option>
+          <option value="average">Average – blend of the whole screen</option></select></div></div>
+    <div class="row"><label for="COLOR_CHANGE_THRESHOLD">Sensitivity</label>
+      <div><div class="slider"><input type="range" id="COLOR_CHANGE_THRESHOLD" data-k="COLOR_CHANGE_THRESHOLD" min="1" max="200" step="1"><output></output></div>
+        <div class="hint">Minimum color change before the light updates (0–441). Lower = reacts to small changes, higher = calmer.</div></div></div>
+    <div class="row"><label for="TRANSITION_MS">Fade time</label>
+      <div><div class="slider"><input type="range" id="TRANSITION_MS" data-k="TRANSITION_MS" min="0" max="3000" step="50"><output></output></div>
+        <div class="hint">How long each color change fades. 0 = instant.</div></div></div>
+    <div class="row"><label for="MIN_CALL_INTERVAL_MS">Min. time between updates</label>
+      <div><div class="slider"><input type="range" id="MIN_CALL_INTERVAL_MS" data-k="MIN_CALL_INTERVAL_MS" min="50" max="3000" step="50"><output></output></div>
+        <div class="hint">Rate limit for Home Assistant. Slow bulbs and hubs need a higher value.</div></div></div>
+    <div class="row"><label for="UPDATE_INTERVAL_MS">Screen check interval</label>
+      <div><div class="slider"><input type="range" id="UPDATE_INTERVAL_MS" data-k="UPDATE_INTERVAL_MS" min="50" max="2000" step="50"><output></output></div>
+        <div class="hint">How often the screen is analyzed.</div></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Brightness</h2>
+    <div class="row"><span class="lab">Auto brightness</span>
+      <div><label class="check"><input type="checkbox" id="AUTO_BRIGHTNESS" data-k="AUTO_BRIGHTNESS"> Follow the brightness of the detected color</label>
+        <div class="hint">Dark scenes give a dim light instead of full brightness.</div></div></div>
+    <div class="row"><label for="BRIGHTNESS">Brightness</label>
+      <div><div class="slider"><input type="range" id="BRIGHTNESS" data-k="BRIGHTNESS" min="1" max="255" step="1"><output></output></div>
+        <div class="hint" id="brHint">Fixed brightness (1–255).</div></div></div>
+    <div class="row" id="rowMinBr"><label for="MIN_BRIGHTNESS">Minimum brightness</label>
+      <div><div class="slider"><input type="range" id="MIN_BRIGHTNESS" data-k="MIN_BRIGHTNESS" min="1" max="255" step="1"><output></output></div>
+        <div class="hint">Lowest level used in auto mode.</div></div></div>
+  </div>
+
+  <div class="card">
+    <h2>Advanced</h2>
+    <div class="row"><label for="DISPLAY_INDEX">Monitor</label>
+      <div><select id="DISPLAY_INDEX" data-k="DISPLAY_INDEX"></select></div></div>
+    <div class="row"><span class="lab">When stopping</span>
+      <div><label class="check"><input type="checkbox" id="KEEP_COLOR_ON_STOP" data-k="KEEP_COLOR_ON_STOP"> Keep the last color instead of restoring the previous state</label></div></div>
+    <div class="row"><span class="lab">Debug exports</span>
+      <div><label class="check"><input type="checkbox" id="EXPORT_JSON" data-k="EXPORT_JSON"> Write color statistics to colorlog.ndjson</label>
+        <label class="check"><input type="checkbox" id="EXPORT_SCREENSHOT" data-k="EXPORT_SCREENSHOT"> Save screenshot.png (every 5 s)</label></div></div>
+    <div class="row"><label for="LOG_LEVEL">Log level</label>
+      <div><select id="LOG_LEVEL" data-k="LOG_LEVEL">
+          <option>debug</option><option>info</option><option>warn</option><option>error</option></select></div></div>
+    <div class="hint" id="cfgPath"></div>
+  </div>
+</main>
+
+<div class="savebar"><div>
+  <span class="state" id="dirtyState">All changes saved</span>
+  <button id="btnRevert" disabled>Revert</button>
+  <button class="primary" id="btnSave" disabled>Save &amp; apply</button>
+  <div id="err" role="alert"></div>
+</div></div>
+<div id="toast" role="status"></div>
+
+<script>
+(() => {
+  const TOKEN = new URLSearchParams(location.search).get('t') || '';
+  const $ = (id) => document.getElementById(id);
+  const fields = [...document.querySelectorAll('[data-k]')];
+  const KEYS = fields.map(f => f.dataset.k);
+  const PRESETS = {
+    calm:     { COLOR_CHANGE_THRESHOLD: 80, TRANSITION_MS: 1500, MIN_CALL_INTERVAL_MS: 1000 },
+    balanced: { COLOR_CHANGE_THRESHOLD: 60, TRANSITION_MS: 800,  MIN_CALL_INTERVAL_MS: 800 },
+    reactive: { COLOR_CHANGE_THRESHOLD: 32, TRANSITION_MS: 0,    MIN_CALL_INTERVAL_MS: 150 },
+  };
+  const UNITS = { COLOR_CHANGE_THRESHOLD: '', TRANSITION_MS: ' ms', MIN_CALL_INTERVAL_MS: ' ms', UPDATE_INTERVAL_MS: ' ms', BRIGHTNESS: '', MIN_BRIGHTNESS: '' };
+
+  let baseline = '';      // JSON of the form as last loaded/saved
+  let running = false;
+  let loaded = false;
+
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'X-Token': TOKEN, 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    let data = {};
+    try { data = await res.json(); } catch (_) {}
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data;
+  }
+
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  function readForm() {
+    const o = {};
+    for (const f of fields) {
+      const k = f.dataset.k;
+      if (f.type === 'checkbox') o[k] = f.checked;
+      else if (f.type === 'range' || f.type === 'number' || k === 'DISPLAY_INDEX') o[k] = Number(f.value);
+      else o[k] = f.value.trim();
+    }
+    return o;
+  }
+
+  function writeForm(cfg) {
+    for (const f of fields) {
+      const k = f.dataset.k;
+      if (k === 'HA_TOKEN') { f.value = ''; continue; }
+      if (f.type === 'checkbox') f.checked = !!cfg[k];
+      else f.value = cfg[k] ?? '';
+    }
+    refreshOutputs();
+  }
+
+  function refreshOutputs() {
+    for (const f of fields) {
+      if (f.type !== 'range') continue;
+      f.parentElement.querySelector('output').textContent = f.value + (UNITS[f.dataset.k] || '');
+    }
+    const auto = $('AUTO_BRIGHTNESS').checked;
+    $('rowMinBr').style.display = auto ? '' : 'none';
+    $('brHint').textContent = auto ? 'Maximum brightness (1–255).' : 'Fixed brightness (1–255).';
+  }
+
+  function updateDirty() {
+    const now = readForm();
+    const dirty = loaded && JSON.stringify(now) !== baseline;
+    // "Find lights" only talks to the saved server, so it needs the connection settings saved first.
+    const base = loaded ? JSON.parse(baseline) : {};
+    const connDirty = loaded && (now.HA_URL !== base.HA_URL || now.HA_TOKEN !== '');
+    $('btnFind').disabled = connDirty;
+    $('btnFind').title = connDirty ? 'Save the URL/token changes first' : '';
+    $('btnSave').disabled = !dirty;
+    $('btnRevert').disabled = !dirty;
+    const s = $('dirtyState');
+    s.textContent = dirty ? 'Unsaved changes' : 'All changes saved';
+    s.classList.toggle('dirty', dirty);
+  }
+
+  function fillDisplays(displays, current) {
+    const sel = $('DISPLAY_INDEX');
+    sel.innerHTML = '';
+    const list = displays.length ? displays : [{ index: 0, width: 0, height: 0 }];
+    for (const d of list) {
+      const o = document.createElement('option');
+      o.value = d.index;
+      o.textContent = 'Monitor ' + (d.index + 1) + (d.width ? ' (' + d.width + '×' + d.height + ')' : '') + (d.index === 0 ? ' – primary' : '');
+      sel.appendChild(o);
+    }
+    if (current >= list.length) {
+      const o = document.createElement('option');
+      o.value = current; o.textContent = 'Monitor ' + (current + 1) + ' (not connected)';
+      sel.appendChild(o);
+    }
+  }
+
+  function setSwatch(id, hexId, hex) {
+    // The checkerboard (shown while there is no color) must go away for the color to be visible.
+    $(id).style.backgroundImage = hex ? 'none' : '';
+    $(id).style.backgroundColor = hex || '';
+    $(hexId).textContent = hex || '–';
+  }
+
+  function applyStatus(s) {
+    running = s.running;
+    const chip = $('chip');
+    chip.className = 'chip' + (s.running ? (/error/i.test(s.status) ? ' error' : /wait/i.test(s.status) ? ' wait' : ' running') : '');
+    $('status').textContent = s.status;
+    $('btnRun').textContent = s.running ? 'Stop sync' : 'Start sync';
+    setSwatch('swDetected', 'hxDetected', s.detected);
+    setSwatch('swSent', 'hxSent', s.sent);
+  }
+
+  async function load(initial) {
+    const s = await api('/api/state');
+    if (initial) {
+      $('ver').textContent = s.version;
+      $('cfgPath').textContent = 'Config file: ' + s.config_path;
+    }
+    fillDisplays(s.displays, s.config.DISPLAY_INDEX);
+    writeForm(s.config);
+    $('tokenHint').textContent = s.token_set
+      ? 'A token is saved. Leave empty to keep it, or paste a new one to replace it.'
+      : 'Long-lived access token from your Home Assistant profile.';
+    baseline = JSON.stringify(readForm());
+    loaded = true;
+    applyStatus(s);
+    updateDirty();
+  }
+
+  async function poll() {
+    try {
+      const s = await api('/api/state');
+      applyStatus(s);
+    } catch (e) {
+      $('chip').className = 'chip error';
+      $('status').textContent = 'App not reachable';
+    }
+  }
+
+  // --- events -------------------------------------------------------------
+  for (const f of fields) {
+    f.addEventListener('input', () => { refreshOutputs(); updateDirty(); $('err').textContent = ''; });
+    f.addEventListener('change', () => { refreshOutputs(); updateDirty(); });
+  }
+
+  for (const b of document.querySelectorAll('[data-preset]')) {
+    b.addEventListener('click', () => {
+      for (const [k, v] of Object.entries(PRESETS[b.dataset.preset])) $(k).value = v;
+      refreshOutputs(); updateDirty();
+    });
+  }
+
+  $('btnSave').addEventListener('click', async () => {
+    const btn = $('btnSave'); btn.disabled = true; $('err').textContent = '';
+    try {
+      await api('/api/config', readForm());
+      await load(false);
+      toast(running ? 'Saved – sync restarted with the new settings' : 'Saved');
+      $('btnFind').click(); // refresh the light list for the (possibly new) server
+    } catch (e) {
+      $('err').textContent = e.message;
+      updateDirty();
+    }
+  });
+
+  $('btnRevert').addEventListener('click', () => load(false).catch(e => $('err').textContent = e.message));
+
+  $('btnRun').addEventListener('click', async () => {
+    try { await api('/api/sync', { action: running ? 'stop' : 'start' }); } catch (e) { toast(e.message); }
+    poll();
+  });
+  for (const [id, action] of [['btnOn', 'on'], ['btnOff', 'off']]) {
+    $(id).addEventListener('click', async () => {
+      try { await api('/api/light', { action }); toast('Light turned ' + action); } catch (e) { toast(e.message); }
+    });
+  }
+
+  $('btnFind').addEventListener('click', async () => {
+    const msg = $('findMsg'); msg.className = 'msg'; msg.textContent = 'Looking…';
+    try {
+      const r = await api('/api/discover', {});
+      const dl = $('lights'); dl.innerHTML = '';
+      for (const l of r.lights) {
+        const o = document.createElement('option');
+        o.value = l.id; o.label = (l.name || l.id) + ' (' + l.state + ')';
+        dl.appendChild(o);
+      }
+      if (r.lights.length === 1 && !$('LED_ENTITY').value) { $('LED_ENTITY').value = r.lights[0].id; updateDirty(); }
+      msg.className = 'msg ok';
+      msg.textContent = 'Connected – ' + r.lights.length + ' light' + (r.lights.length === 1 ? '' : 's') + ' found' +
+        (r.lights.length ? ': click the field to choose.' : '.');
+    } catch (e) {
+      msg.className = 'msg bad'; msg.textContent = e.message;
+    }
+  });
+
+  window.addEventListener('beforeunload', (e) => {
+    if (!$('btnSave').disabled) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  load(true).then(() => $('btnFind').click()).catch(e => {
+    $('status').textContent = 'Not authorized';
+    $('err').textContent = 'Could not load settings: ' + e.message + ' – open this page from the tray menu (Settings).';
+  });
+  setInterval(poll, 800);
+})();
+</script>
+</body>
+</html>
